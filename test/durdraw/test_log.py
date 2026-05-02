@@ -5,6 +5,7 @@ import io
 import json
 import logging
 import os
+import pytest
 import time
 
 def init_test_logger(name='test_log', **kwargs):
@@ -195,3 +196,18 @@ class TestLog:
                 'data': {},
             },
         ]
+
+    def test_log_on_crash_resets_terminal_on_keyboard_interrupt(self, monkeypatch):
+        reset_calls = []
+
+        monkeypatch.setattr(log, 'reset_terminal_to_normal', lambda: reset_calls.append(None))
+
+        @log.log_on_crash
+        def interrupted():
+            raise KeyboardInterrupt
+
+        with pytest.raises(SystemExit) as error:
+            interrupted()
+
+        assert error.value.code == 130
+        assert reset_calls == [None]

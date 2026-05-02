@@ -24,8 +24,13 @@ usage examples to log messages:
 from dataclasses import asdict, is_dataclass
 from datetime import datetime, timezone
 from functools import wraps
+import curses
 import json
 import logging
+import os
+import shutil
+import subprocess
+import sys
 
 CRITICAL: int = logging.CRITICAL
 ERROR:    int = logging.ERROR
@@ -49,6 +54,40 @@ CURRENT_LOG_LEVEL = DEFAULT_LOG_LEVEL
 CURRENT_LOG_FILEPATH = DEFAULT_LOG_FILEPATH
 CURRENT_LOG_TZ = timezone.utc
 LOGGER_INITIALISED = False
+
+
+def reset_terminal_to_normal() -> None:
+    '''
+    Best-effort terminal cleanup for interrupted curses entrypoints.
+    '''
+    try:
+        curses.nocbreak()
+    except curses.error:
+        pass
+    try:
+        curses.echo()
+    except curses.error:
+        pass
+    try:
+        curses.endwin()
+    except curses.error:
+        pass
+
+    if sys.stdout.isatty():
+        # Disable mouse tracking, leave alternate screen buffers, show cursor,
+        # and reset character attributes.
+        sys.stdout.write('\033[?1000l\033[?1002l\033[?1003l\033[?1006l')
+        sys.stdout.write('\033[?1049l\033[?1047l\033[?47l\033[?25h\033[0m')
+        sys.stdout.flush()
+
+    if os.name == 'posix' and sys.stdin.isatty() and shutil.which('stty'):
+        subprocess.run(
+            ['stty', 'sane'],
+            stdin=sys.stdin,
+            stdout=subprocess.DEVNULL,
+            stderr=subprocess.DEVNULL,
+            check=False,
+        )
 
 
 def _json_default(obj: object) -> str:
@@ -170,6 +209,9 @@ def log_on_crash(func):
         # run the function, return the result, and log any exceptions
         try:
             return func(*args, **kwargs)
+        except KeyboardInterrupt:
+            reset_terminal_to_normal()
+            raise SystemExit(130)
         except Exception as e:
             logger.exception(
                 'durview crashed',

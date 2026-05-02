@@ -62,6 +62,8 @@ class AppState():
 
         self.play_queue = []    # List of files to switch between with 'n' and 'p' in Durview and/or play mode
         self.play_queue_position = None
+        self.play_queue_direction = 0
+        self.play_queue_auto_advance = False
 
         # Other durdraw runtime stuff
         self.can_inject = False # Allow injecting color codes to override ncurses colors (for BG 256 colors)
@@ -91,6 +93,8 @@ class AppState():
         self.characterSet = "Durdraw Default"
         self.showCharSetButton = False
         self.workingLoadDirectory = None
+        self.usingDirMode = False
+        self.dirSort = "name"
         self.fileShortPath = None
         self.fileLongPath = None
         # if self.characterSet == "Unicode Block" then Durdraw knows to use a
@@ -432,6 +436,4 @@ class AppState():
         #    self.hasHelpFile = False
         #    self.helpMov = None
         #    return False
-
-
 
