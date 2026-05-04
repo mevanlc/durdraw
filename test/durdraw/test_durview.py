@@ -41,6 +41,7 @@ def test_dir_option_starts_browser_in_local_directory(tmp_path):
     assert ui.app.workingLoadDirectory == str(tmp_path)
     assert ui.app.usingDirMode is True
     assert ui.app.dirSort == "name"
+    assert ui.app.flattenDirs is False
     assert ui.app.sixteenc_browsing is False
     assert ui.app.playOnlyMode is True
     assert ui.app.editorRunning is False
@@ -77,6 +78,22 @@ def test_dir_sort_option_sets_sort_mode(tmp_path):
 def test_dir_sort_option_requires_dir():
     with pytest.raises(SystemExit):
         durview.main(["--dir-sort", "size"])
+
+    assert FakeUI.instances == []
+
+
+def test_flatten_dirs_option_sets_flatten_mode(tmp_path):
+    durview.main(["--dir", str(tmp_path), "--flatten-dirs"])
+
+    ui = FakeUI.instances[0]
+    assert ui.app.workingLoadDirectory == str(tmp_path)
+    assert ui.app.usingDirMode is True
+    assert ui.app.flattenDirs is True
+
+
+def test_flatten_dirs_option_requires_directory_browser():
+    with pytest.raises(SystemExit):
+        durview.main(["--flatten-dirs", "examples/file_id.dur"])
 
     assert FakeUI.instances == []
 

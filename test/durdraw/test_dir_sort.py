@@ -4,9 +4,14 @@ from types import SimpleNamespace
 from durdraw.durdraw_ui_curses import ALL_FILE_MASKS, DEFAULT_LOAD_FILE_MASKS, UserInterface
 
 
-def make_ui(sort_mode):
+def make_ui(sort_mode, flatten_dirs=False):
     ui = UserInterface.__new__(UserInterface)
-    ui.appState = SimpleNamespace(usingDirMode=True, dirSort=sort_mode)
+    ui.appState = SimpleNamespace(
+        usingDirMode=True,
+        dirSort=sort_mode,
+        flattenDirs=flatten_dirs,
+        sixteenc_browsing=False,
+    )
     return ui
 
 
@@ -110,6 +115,47 @@ def test_build_sixteenc_file_list_filters_default_and_show_all_keeps_parent():
         "info.NFO",
         "song.xm",
     ]
+
+
+def test_get_local_file_list_flatten_dirs_recurses_without_folders(tmp_path):
+    nested = tmp_path / "nested"
+    deeper = nested / "deeper"
+    nested.mkdir()
+    deeper.mkdir()
+    top_file = tmp_path / "top.ans"
+    nested_file = nested / "mid.dur"
+    deeper_file = deeper / "deep.txt"
+    ignored_file = deeper / "skip.bin"
+    top_file.write_text("top")
+    nested_file.write_text("nested")
+    deeper_file.write_text("deep")
+    ignored_file.write_text("skip")
+    ui = make_ui("name", flatten_dirs=True)
+
+    file_list, folders = ui.getLocalFileList(str(tmp_path), ["*.ans", "*.dur", "*.txt"])
+
+    assert folders == []
+    assert file_list == [
+        os.path.join("nested", "deeper", "deep.txt"),
+        os.path.join("nested", "mid.dur"),
+        "top.ans",
+    ]
+
+
+def test_set_local_play_queue_handles_flattened_relative_paths(tmp_path):
+    nested = tmp_path / "nested"
+    nested.mkdir()
+    top_file = tmp_path / "top.ans"
+    nested_file = nested / "mid.dur"
+    top_file.write_text("top")
+    nested_file.write_text("nested")
+    ui = make_ui("name", flatten_dirs=True)
+    selected_name = os.path.join("nested", "mid.dur")
+
+    ui.setLocalPlayQueue(str(tmp_path), [selected_name, "top.ans"], [], selected_name)
+
+    assert ui.appState.play_queue == [str(nested_file), str(top_file)]
+    assert ui.appState.play_queue_position == 0
 
 
 def test_request_viewer_file_change_sets_direction_and_stops_viewer():

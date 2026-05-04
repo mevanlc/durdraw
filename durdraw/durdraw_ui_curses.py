@@ -4447,6 +4447,34 @@ class UserInterface():  # Separate view (curses) from this controller
             folder_names.append(os.path.sep.join(path_string.split(os.path.sep)[-2:]))
         return ["../"] + self.sortLocalNames(current_directory, folder_names)
 
+    def localFileMatchesMasks(self, name, masks):
+        for mask in masks:
+            if fnmatch.fnmatch(name.lower(), mask.lower()):
+                return True
+        return False
+
+    def getLocalFileNames(self, current_directory, masks, include_hidden=False):
+        matched_files = []
+        if getattr(self.appState, "flattenDirs", False):
+            for root, dirs, files in os.walk(current_directory):
+                if not include_hidden:
+                    dirs[:] = [dirname for dirname in dirs if not dirname.startswith(".")]
+                for filename in files:
+                    if self.localFileMatchesMasks(filename, masks):
+                        full_path = os.path.join(root, filename)
+                        matched_files.append(os.path.relpath(full_path, current_directory))
+        else:
+            for filename in os.listdir(current_directory):
+                if self.localFileMatchesMasks(filename, masks):
+                    matched_files.append(filename)
+        return self.sortLocalNames(current_directory, matched_files)
+
+    def getLocalFileList(self, current_directory, masks, include_hidden=False):
+        folders = []
+        if not getattr(self.appState, "flattenDirs", False):
+            folders = self.getLocalFolders(current_directory, include_hidden=include_hidden)
+        return folders + self.getLocalFileNames(current_directory, masks, include_hidden=include_hidden), folders
+
     def setLocalPlayQueue(self, current_directory, file_list, folders, selected_name):
         selected_path = os.path.join(current_directory, selected_name)
         play_queue = []
@@ -4491,18 +4519,13 @@ class UserInterface():  # Separate view (curses) from this controller
     def buildSixteenColorsFileList(self, folders, names, masks):
         return list(folders) + sorted(self.filterFileNames(names, masks))
 
-    def findLocalFiles(self, current_directory, folders, masks):
+    def findLocalFiles(self, current_directory, folders, masks, include_hidden=False):
         # update file list
         self.log.debug('finding local files!!!', {'current_directory': current_directory, 'folders': folders, 'masks': masks})
-        file_list, matched_files = [], []
         if self.appState.sixteenc_browsing:
-            search_files_list = []
+            return list(folders)
         else:
-            search_files_list = os.listdir(current_directory)
-        matched_files = self.filterFileNames(search_files_list, masks)
-        for dirname in folders:
-            file_list.append(dirname)
-        file_list += self.sortLocalNames(current_directory, matched_files)
+            file_list = list(folders) + self.getLocalFileNames(current_directory, masks, include_hidden=include_hidden)
         self.log.debug('repopulated file list', {'file_list': file_list})
         return file_list
 
@@ -4541,15 +4564,7 @@ class UserInterface():  # Separate view (curses) from this controller
             current_directory = os.getcwd()
 
         if not self.appState.sixteenc_browsing:
-            file_list = []
-            #folders += sorted(filter(os.path.isdir, glob.glob(os.path.join(current_directory, "*/"))))
-            folders = self.getLocalFolders(current_directory)
-
-            for file in os.listdir(current_directory):
-                for mask in masks:
-                    if fnmatch.fnmatch(file.lower(), mask.lower()):
-                        matched_files.append(file)
-                        break
+            file_list, folders = self.getLocalFileList(current_directory, masks)
         elif self.appState.sixteenc_browsing:
             self.sixteenc_api = SixteenColorsAPI()
             if self.sixteenc_years == None:
@@ -4581,7 +4596,7 @@ class UserInterface():  # Separate view (curses) from this controller
 
 
 
-        if not self.appState.sixteenc_browsing:
+        if not self.appState.sixteenc_browsing and file_list == []:
             for dirname in folders:
                 file_list.append(dirname)
 
@@ -4845,26 +4860,11 @@ class UserInterface():  # Separate view (curses) from this controller
                                                 current_directory = f"{current_directory}/{file_list[self.selected_item_number]}"
                                                 if current_directory[-1] == "/":
                                                     current_directory = current_directory[:-1]
-                                            # get file list
-                                            folders =  ["../"]
-                                            #folders += glob.glob("*/", root_dir=current_directory)
-                                            if not self.appState.sixteenc_browsing:
-                                                folders = self.getLocalFolders(current_directory)
-
                                             if mask_all:
                                                 masks = ALL_FILE_MASKS
                                             else:
                                                 masks = default_masks
-                                            matched_files = []
-                                            file_list = []
-                                            for file in os.listdir(current_directory):
-                                                for mask in masks:
-                                                    if fnmatch.fnmatch(file.lower(), mask.lower()):
-                                                        matched_files.append(file)
-                                                        break
-                                            for dirname in folders:
-                                                file_list.append(dirname)
-                                            file_list += self.sortLocalNames(current_directory, matched_files)
+                                            file_list, folders = self.getLocalFileList(current_directory, masks, include_hidden=mask_all)
                                             # reset ui
                                             self.selected_item_number = 0
                                             search_string = ""
@@ -4955,24 +4955,13 @@ class UserInterface():  # Separate view (curses) from this controller
                                 masks = ALL_FILE_MASKS
                         elif self.appState.sixteenc_available and mouseCol in range(sixteen_column,sixteen_column+3):  # clicked [X] 16c
                             self.appState.sixteenc_browsing = not self.appState.sixteenc_browsing
-                            folders =  ["../"]
-                            #folders += glob.glob("*/", root_dir=current_directory)
                             if not self.appState.sixteenc_browsing:
-                                if mask_all:
-                                    folders = self.getLocalFolders(current_directory, include_hidden=True)
-                                else:
-                                    folders = self.getLocalFolders(current_directory)
-
-
-                        matched_files = []
-                        file_list = []
-                        if self.appState.sixteenc_browsing:
-                            if self.sixteenc_levels[self.sixteenc_level] == "pack":
-                                file_list = self.buildSixteenColorsFileList(folders, sixteenc_files, masks)
+                                file_list, folders = self.getLocalFileList(current_directory, masks, include_hidden=mask_all)
                             else:
-                                file_list = list(folders)
-                        else:
-                            file_list = self.findLocalFiles(current_directory, folders, masks)
+                                if self.sixteenc_levels[self.sixteenc_level] == "pack":
+                                    file_list = self.buildSixteenColorsFileList(folders, sixteenc_files, masks)
+                                else:
+                                    file_list = list(folders)
                         # reset ui
                         self.selected_item_number = 0
                         search_string = ""
@@ -5023,25 +5012,17 @@ class UserInterface():  # Separate view (curses) from this controller
                         masks = ALL_FILE_MASKS
                     else:
                         masks = default_masks
-
-
-
                     # update file list
                     matched_files = []
                     file_list = []
                     full_file_list = []
-                    search_files_list = []
-                    if self.appState.sixteenc_browsing: 
+                    if self.appState.sixteenc_browsing:
                         if self.sixteenc_levels[self.sixteenc_level] == "pack":
                             file_list = self.buildSixteenColorsFileList(folders, sixteenc_files, masks)
                         else:
                             file_list = list(folders)
                     else:
-                        search_files_list = os.listdir(current_directory)
-                        matched_files = self.filterFileNames(search_files_list, masks)
-                        for dirname in folders:
-                            file_list.append(dirname)
-                        file_list += self.sortLocalNames(current_directory, matched_files)
+                        file_list, folders = self.getLocalFileList(current_directory, masks, include_hidden=mask_all)
                     # reset ui
                     self.selected_item_number = 0
                     search_string = ""
@@ -5113,14 +5094,8 @@ class UserInterface():  # Separate view (curses) from this controller
                         file_list = []
                         full_file_list = []
 
-                        if mask_all:
-                            folders = self.getLocalFolders(current_directory, include_hidden=True)
-                        else:
-                            folders = self.getLocalFolders(current_directory)
-
-                        matched_files = self.findLocalFiles(current_directory, folders, masks)
-                        self.log.debug('found', {'matched_files': matched_files, 'folders': folders, 'current_directory': current_directory, 'masks': masks})
-                        file_list += matched_files
+                        file_list, folders = self.getLocalFileList(current_directory, masks, include_hidden=mask_all)
+                        self.log.debug('found', {'file_list': file_list, 'folders': folders, 'current_directory': current_directory, 'masks': masks})
                         # reset ui
                         self.selected_item_number = 0
                         search_string = ""
@@ -5290,17 +5265,6 @@ class UserInterface():  # Separate view (curses) from this controller
                                 current_directory = f"{current_directory}/{file_list[self.selected_item_number]}"
                                 if current_directory[-1] == "/":
                                     current_directory = current_directory[:-1]
-                        # get file list
-                        folders =  ["../"]
-                        #folders += sorted(glob.glob("*/", root_dir=current_directory))
-                        if self.appState.sixteenc_browsing:
-                            pass
-                        else:
-                            if mask_all:
-                                folders = self.getLocalFolders(current_directory, include_hidden=True)
-                            else:
-                                folders = self.getLocalFolders(current_directory)
-
                         if mask_all:
                             masks = ALL_FILE_MASKS
                         else:
@@ -5308,21 +5272,23 @@ class UserInterface():  # Separate view (curses) from this controller
                         matched_files = []
                         file_list = []
                         if self.appState.sixteenc_browsing:
+                            folders = ["../"]
                             if self.appState.sixteenc_pack:
                                 search_files_list = sixteenc_files
                             elif self.appState.sixteenc_year:
                                 search_files_list = sixteenc_packs
                             else:
                                 search_files_list = self.sixteenc_years
-                        else:
-                            search_files_list = os.listdir(current_directory)
-                        matched_files = self.filterFileNames(search_files_list, masks)
-                        for dirname in folders:
-                            file_list.append(dirname)
-                        if self.appState.sixteenc_browsing:
-                            file_list += sorted(matched_files)
-                        else:
+                            for file in search_files_list:
+                                for mask in masks:
+                                    if fnmatch.fnmatch(file.lower(), mask.lower()):
+                                        matched_files.append(file)
+                                        break
+                            for dirname in folders:
+                                file_list.append(dirname)
                             file_list += self.sortLocalNames(current_directory, matched_files)
+                        else:
+                            file_list, folders = self.getLocalFileList(current_directory, masks, include_hidden=mask_all)
                         # reset ui
                         top_line = 0
                         self.selected_item_number = 0

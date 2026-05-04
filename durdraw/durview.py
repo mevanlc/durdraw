@@ -46,6 +46,7 @@ def main(fetch_args=None):
                     action="store_true")
     parser.add_argument("--dir", help="Browse files starting in DIR", metavar="DIR", type=readable_directory)
     parser.add_argument("--dir-sort", help="Sort files and directories in --dir mode", choices=("size", "name", "mtime"), default="name")
+    parser.add_argument("--flatten-dirs", help="Recursively show viewable files from --dir in one flat list", action="store_true")
     parser.add_argument("--theme", help="Load a custom theme file", nargs=1)
     parser.add_argument("-V", "--version", help="Show version number and exit",
                     action="store_true")
@@ -56,6 +57,10 @@ def main(fetch_args=None):
         parser.error("--dir cannot be used with file arguments")
     if args.dir_sort != "name" and not args.dir:
         parser.error("--dir-sort requires --dir")
+    if args.flatten_dirs and not args.dir:
+        is_directory_argument = len(args.filename) == 1 and os.path.isdir(os.path.abspath(os.path.expanduser(args.filename[0])))
+        if not is_directory_argument:
+            parser.error("--flatten-dirs requires --dir or a directory argument")
 
     if args.version:
         print(DUR_VER)
@@ -137,11 +142,14 @@ def main(fetch_args=None):
         app.workingLoadDirectory = args.dir
         app.usingDirMode = True
         app.dirSort = args.dir_sort
+        app.flattenDirs = args.flatten_dirs
         app.sixteenc_browsing = False
     elif args.filename:
         if os.path.isdir(args.filename[0]):
             # If the first paramater is a directory, treat that as the starting folder.
             app.workingLoadDirectory = os.path.abspath(os.path.expanduser(args.filename[0]))
+            app.usingDirMode = True
+            app.flattenDirs = args.flatten_dirs
             app.sixteenc_browsing = False
         else:   # Otherwise, add all the files to the play queue.
             app.play_queue = args.filename

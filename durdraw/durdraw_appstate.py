@@ -95,6 +95,7 @@ class AppState():
         self.workingLoadDirectory = None
         self.usingDirMode = False
         self.dirSort = "name"
+        self.flattenDirs = False
         self.fileShortPath = None
         self.fileLongPath = None
         # if self.characterSet == "Unicode Block" then Durdraw knows to use a
@@ -436,4 +437,3 @@ class AppState():
         #    self.hasHelpFile = False
         #    self.helpMov = None
         #    return False
-
