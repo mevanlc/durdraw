@@ -1,7 +1,7 @@
 import os
 from types import SimpleNamespace
 
-from durdraw.durdraw_ui_curses import UserInterface
+from durdraw.durdraw_ui_curses import ALL_FILE_MASKS, DEFAULT_LOAD_FILE_MASKS, UserInterface
 
 
 def make_ui(sort_mode):
@@ -71,6 +71,47 @@ def test_set_local_play_queue_tracks_selected_file_and_skips_dirs(tmp_path):
     assert ui.appState.play_queue_auto_advance is False
 
 
+def test_set_sixteenc_play_queue_tracks_selected_file_and_skips_parent():
+    ui = make_ui("name")
+
+    ui.setSixteenColorsPlayQueue("pack-01", ["../", "one.ans", "two.ans"], ["../"], "two.ans")
+
+    assert ui.appState.play_queue == [
+        ("16colo.rs", "pack-01", "one.ans"),
+        ("16colo.rs", "pack-01", "two.ans"),
+    ]
+    assert ui.appState.play_queue_position == 1
+    assert ui.appState.play_queue_direction == 0
+    assert ui.appState.play_queue_auto_advance is False
+
+
+def test_filter_file_names_uses_default_load_allowlist_case_insensitive():
+    ui = make_ui("name")
+
+    assert ui.filterFileNames(
+        ["art.ANS", "readme.nfo", "image.jpg", "song.xm", "demo.tx5", "FILE_ID.DIZ"],
+        DEFAULT_LOAD_FILE_MASKS,
+    ) == ["art.ANS", "readme.nfo", "FILE_ID.DIZ"]
+
+
+def test_build_sixteenc_file_list_filters_default_and_show_all_keeps_parent():
+    ui = make_ui("name")
+    names = ["art.ANS", "image.jpg", "info.NFO", "song.xm"]
+
+    assert ui.buildSixteenColorsFileList(["../"], names, DEFAULT_LOAD_FILE_MASKS) == [
+        "../",
+        "art.ANS",
+        "info.NFO",
+    ]
+    assert ui.buildSixteenColorsFileList(["../"], names, ALL_FILE_MASKS) == [
+        "../",
+        "art.ANS",
+        "image.jpg",
+        "info.NFO",
+        "song.xm",
+    ]
+
+
 def test_request_viewer_file_change_sets_direction_and_stops_viewer():
     ui = make_ui("name")
     ui.appState.play_queue = ["one.ans", "two.ans"]
@@ -101,6 +142,23 @@ def test_request_viewer_file_change_ignores_out_of_range_move():
     assert ui.playing is True
     assert ui.appState.topLine == 7
     assert ui.appState.firstCol == 4
+
+
+def test_load_play_queue_position_resolves_sixteenc_queue_item():
+    ui = make_ui("name")
+    ui.appState.play_queue = [("16colo.rs", "pack-01", "one.ans")]
+    ui.appState.play_queue_position = 0
+    ui.appState.sixteenc_pack = None
+    loaded_urls = []
+
+    ui.sixteenc_api = SimpleNamespace(
+        get_url_for_file=lambda pack, filename: f"https://16colo.rs/pack/{pack}/raw/{filename}"
+    )
+    ui.loadRemoteFile = lambda url: loaded_urls.append(url) or True
+
+    assert ui.loadPlayQueuePosition() is True
+    assert loaded_urls == ["https://16colo.rs/pack/pack-01/raw/one.ans"]
+    assert ui.appState.sixteenc_pack == "pack-01"
 
 
 def test_run_play_queue_loads_requested_next_file():
