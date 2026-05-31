@@ -28,6 +28,7 @@ import curses
 import json
 import logging
 import os
+from pathlib import Path
 import shutil
 import subprocess
 import sys
@@ -47,13 +48,31 @@ LOG_LEVEL = {
 }
 
 LOG_ROOT_NAME = 'durdraw'
-DEFAULT_LOG_FILEPATH = './durdraw.log'
+DEFAULT_LOG_FILENAME = 'durdraw.log'
+DEFAULT_LOG_DIR = '~/.config/durdraw'
+DEFAULT_LOG_FILEPATH = os.path.join(DEFAULT_LOG_DIR, DEFAULT_LOG_FILENAME)
 DEFAULT_LOG_LEVEL = 'WARNING'
 
 CURRENT_LOG_LEVEL = DEFAULT_LOG_LEVEL
 CURRENT_LOG_FILEPATH = DEFAULT_LOG_FILEPATH
 CURRENT_LOG_TZ = timezone.utc
 LOGGER_INITIALISED = False
+
+
+def app_log_filepath(filepath: str = DEFAULT_LOG_FILEPATH) -> str:
+    '''
+    Return the application log path, always rooted in ~/.config/durdraw.
+    A configured path may choose the filename, but not the directory.
+    '''
+    filepath = os.path.expanduser(filepath or DEFAULT_LOG_FILEPATH)
+    filename = Path(filepath).name or DEFAULT_LOG_FILENAME
+    return os.path.expanduser(os.path.join(DEFAULT_LOG_DIR, filename))
+
+
+def _ensure_log_dir(filepath: str) -> None:
+    log_dir = os.path.dirname(os.path.expanduser(filepath))
+    if log_dir:
+        os.makedirs(log_dir, exist_ok=True)
 
 
 def reset_terminal_to_normal() -> None:
@@ -171,7 +190,7 @@ def getLogger(
     Creates a logger with the given name, level, and handlers.
     - disable the logger by setting the level to logging.CRITICAL
     - the default log level is 'WARNING'
-    - the default log file is './durdraw.log'
+    - the default log file is '~/.config/durdraw/durdraw.log'
 
     This logger will only create an output file if there is a call to write a log message that matches the log level.
     '''
@@ -184,12 +203,13 @@ def getLogger(
         # create a root logger
         LOGGER_INITIALISED = True
         CURRENT_LOG_LEVEL = level
-        CURRENT_LOG_FILEPATH = filepath
+        CURRENT_LOG_FILEPATH = os.path.expanduser(filepath)
         if local_tz:
             CURRENT_LOG_TZ = datetime.now().astimezone().tzinfo
         else:
             CURRENT_LOG_TZ = timezone.utc
 
+    _ensure_log_dir(CURRENT_LOG_FILEPATH)
     return _getLogger(
         name,
         level=LOG_LEVEL[CURRENT_LOG_LEVEL],

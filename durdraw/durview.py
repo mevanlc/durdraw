@@ -112,6 +112,8 @@ def main(fetch_args=None):
             app.loadThemeFromConfig("Theme-256")
         else:
             app.loadThemeFromConfig("Theme-16")
+    app.loadLoggingConfig()
+
     if args.theme:
         if app.colorMode == "256":
             app.loadThemeFile(args.theme[0], "Theme-256")
