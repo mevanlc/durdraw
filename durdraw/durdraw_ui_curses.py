@@ -1453,6 +1453,34 @@ class UserInterface():  # Separate view (curses) from this controller
         self.appState.firstCol = 0
         return True
 
+    def getCurrentViewerFilePath(self):
+        if self.appState.play_queue and self.appState.play_queue_position is not None:
+            queue_item = self.appState.play_queue[self.appState.play_queue_position]
+            if self.isSixteenColorsQueueItem(queue_item):
+                return None
+            return os.path.abspath(os.path.expanduser(queue_item))
+
+        filename = self.appState.curOpenFileName
+        if not filename:
+            return None
+        if os.path.isabs(filename):
+            return os.path.abspath(os.path.expanduser(filename))
+
+        working_directory = getattr(self.appState, "workingLoadDirectory", None)
+        if working_directory:
+            candidate = os.path.join(working_directory, filename)
+            if os.path.exists(candidate):
+                return os.path.abspath(os.path.expanduser(candidate))
+
+        return os.path.abspath(os.path.expanduser(filename))
+
+    def logViewerFileClassification(self, classification):
+        file_path = self.getCurrentViewerFilePath()
+        if file_path is None:
+            return False
+        self.log.warning(f"{classification}: {file_path}")
+        return True
+
     def isSixteenColorsQueueItem(self, item):
         return isinstance(item, tuple) and len(item) == 3 and item[0] == "16colo.rs"
 
@@ -1516,6 +1544,10 @@ class UserInterface():  # Separate view (curses) from this controller
             self.requestViewerFileChange(1)
         elif c in [ord('p')]:
             self.requestViewerFileChange(-1)
+        elif c in [ord('1')]:
+            self.logViewerFileClassification("good")
+        elif c in [ord('0')]:
+            self.logViewerFileClassification("flagged")
         elif c in [ord('v')]:      # v - enable VGA colors
             self.enableTrueVGAColors()
         #elif c in [ord('H')]:  # H = scroll all the way left (like home in editor)

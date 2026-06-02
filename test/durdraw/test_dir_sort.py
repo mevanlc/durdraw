@@ -190,6 +190,43 @@ def test_request_viewer_file_change_ignores_out_of_range_move():
     assert ui.appState.firstCol == 4
 
 
+def test_viewer_one_key_logs_current_file_as_good(tmp_path):
+    art_file = tmp_path / "one.ans"
+    ui = make_ui("name")
+    ui.appState.play_queue = [str(art_file)]
+    ui.appState.play_queue_position = 0
+    messages = []
+    ui.log = SimpleNamespace(warning=lambda message: messages.append(message))
+
+    ui.handlePlayOnlyModeInput(ord("1"))
+
+    assert messages == [f"good: {art_file}"]
+
+
+def test_viewer_zero_key_logs_current_file_as_flagged(tmp_path):
+    art_file = tmp_path / "one.ans"
+    ui = make_ui("name")
+    ui.appState.play_queue = [str(art_file)]
+    ui.appState.play_queue_position = 0
+    messages = []
+    ui.log = SimpleNamespace(warning=lambda message: messages.append(message))
+
+    ui.handlePlayOnlyModeInput(ord("0"))
+
+    assert messages == [f"flagged: {art_file}"]
+
+
+def test_viewer_file_classification_ignores_remote_archive_entries():
+    ui = make_ui("name")
+    ui.appState.play_queue = [("16colo.rs", "pack-01", "one.ans")]
+    ui.appState.play_queue_position = 0
+    messages = []
+    ui.log = SimpleNamespace(warning=lambda message: messages.append(message))
+
+    assert ui.logViewerFileClassification("good") is False
+    assert messages == []
+
+
 def test_load_play_queue_position_resolves_sixteenc_queue_item():
     ui = make_ui("name")
     ui.appState.play_queue = [("16colo.rs", "pack-01", "one.ans")]
